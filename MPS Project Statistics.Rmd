@@ -352,7 +352,8 @@ figure_HI <- ggplot(model_data, aes(x = HI, y = Sightings2026)) +
   scale_y_continuous(
     breaks = 1:6,
     limits = c(0.8, 6.2)
-  ) 
+  ) +
+  theme_classic()
 
 # Display figure
 figure_HI
