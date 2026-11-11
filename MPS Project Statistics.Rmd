@@ -1,7 +1,6 @@
 ---
 title: "MPS Project Stats"
 output: html_document
-date: "2026-11-02"
 ---
 
 ```{r setup, include=FALSE}
@@ -72,7 +71,6 @@ model_data %>%
   ) %>%
   cor()
 ```
-Calf & juvenile encounters are distinct enough to keep as separate variables. 
 
 #Objective 1: Factors Associated with Resighting Frequency -- generalized poisson regression
 #response variable = #of sightings (count data, not normally distributed)
@@ -174,11 +172,11 @@ model5gp <- glmmTMB(
   data = model_data
 )
 
+#compare models with AIC 
 AIC(model1n, model2n, model3n, model4n, model5n)
 AIC(model1p, model2p, model3p, model4p, model5p)
 AIC(model1gp, model2gp, model3gp, model4gp, model5gp)
 ```
-Model 4 (generalized poisson) had the lowest AIC value and was selected as the best-supported model.
 
 ```{r}
 library(DHARMa)
@@ -190,14 +188,14 @@ simulationOutput <- simulateResiduals(
 
 plot(simulationOutput)
 
+#check model diagnostics
 testDispersion(simulationOutput)
 testUniformity(simulationOutput)
 testOutliers(simulationOutput)
 ```
-DHARMa diagnostic detected significant for non-uniform residuals.
-No excess of outliers was detected.
 
 ```{r}
+#what variables have significant association w/resighting frequency?
 summary(model4n)
 summary(model4p)
 summary(model4gp)
@@ -206,7 +204,6 @@ model4n$fit$convergence
 model4p$fit$convergence #converged
 model4gp$fit$convergence #converged 
 ```
-Historical record span and Avg Group Size, were not significantly associated with resighting frequency, but the number of calf-associated encounters and HI was positively associated with resighting frequency 
 
 #Objective 2: Factors Associated with HI Indicators -- logistic regression 
 #response variable = HI presence (binary) 
@@ -254,17 +251,14 @@ HI5 <- glm(
   data = model_data
 )
 
+#compare models with AIC 
 AIC(HI1, HI2, HI3, HI4, HI5)
 ```
-Model 5 had the lowest AIC value and was selected as the best-supported model.
+
 ```{r}
 summary(HI5)
 HI5$converged
 ```
-More frequently encountered dolphins were not significantly more likely to exhibit HI indicators.
-Dolphins observed in larger groups tended to have a higher probability of exhibiting visible indicators of human interaction -- relationship not statistically significant (p = 0.075).
-Although juvenile encounters were not significantly associated with HI presence (β = 1.079, p = 0.122), the positive coefficient suggested a tendency for dolphins associated with juvenile groups to be more likely to exhibit HI indicators. The inclusion of juvenile encounters contributed to the best-supported model based on AIC.
-Dolphins with longer historical record spans were significantly more likely to exhibit visible indicators of human interaction (p=0.0102)
 
 ```{r}
 #Summary Statistics 
@@ -296,6 +290,7 @@ model_data %>%
     Max_Group = max(AvgGroupSize)
   )
 ```
+
 #Figures 
 ```{r}
 #Resighting Frequency Distribution Figure  
@@ -314,18 +309,6 @@ ggplot(model_data,
     y = "Number of Dolphins",
     title = "Resighting Frequency Distribution"
   )
-
-#Historical Record Span Distribution Figure  
-ggplot(model_data,
-       aes(x = RecordSpan)) +
-  geom_bar(fill='darkblue') +
-  theme_classic() +
-  labs(
-    x = "Historical Record Span (years)",
-    y = "Number of Dolphins",
-    title = "Historical Record Span Distribution"
-  )
-```
 
 ```{r}
 #Calf Encounters vs Resighting Frequency Figure 
