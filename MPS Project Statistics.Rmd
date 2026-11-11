@@ -1,0 +1,407 @@
+---
+title: "MPS Project Stats"
+output: html_document
+date: "2026-11-02"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+```{r}
+dolphin <- read.csv("MPSstats.csv")
+head(dolphin)
+#view(dolphin)
+#descriptive stats for each variable
+summary(dolphin)
+```
+
+```{r}
+#create model dataset
+model_data <- dolphin %>%
+  select(
+    Dolphin.ID,
+    Historical.Record.Span..years.,
+    X..of.Sightings.2026.Season,
+    HI.Present..1.yes.,
+    Calf.Encounters.2026,
+    Juvenile.Encounters.2026,
+    Average.Group.Size
+  )
+
+#rename variables 
+model_data <- model_data %>%
+  rename(
+    DolphinID = Dolphin.ID,
+    RecordSpan = Historical.Record.Span..years.,
+    Sightings2026 = X..of.Sightings.2026.Season,
+    HI = HI.Present..1.yes.,
+    CalfEncounters = Calf.Encounters.2026,
+    JuvenileEncounters = Juvenile.Encounters.2026,
+    AvgGroupSize = Average.Group.Size
+  )
+
+#create factor for HI (1=yes, 0=no)
+model_data <- model_data %>%
+  mutate(HI = factor(HI))
+
+glimpse(model_data)
+```
+
+```{r}
+#count #of dolphins with/without HI 
+model_data %>%
+  count(HI)
+
+#count #of sightings 
+model_data %>%
+  count(Sightings2026)
+```
+
+#Do any variables correlate? 
+```{r}
+#correlation matrix 
+model_data %>%
+  select(
+    RecordSpan,
+    Sightings2026,
+    CalfEncounters,
+    JuvenileEncounters,
+    AvgGroupSize,
+  ) %>%
+  cor()
+```
+Calf & juvenile encounters are distinct enough to keep as separate variables. 
+
+#Objective 1: Factors Associated with Resighting Frequency -- generalized poisson regression
+#response variable = #of sightings (count data, not normally distributed)
+```{r}
+library(glmmTMB)
+
+#Does historical record span predict resighting frequency?
+model1n <- glmmTMB(
+  Sightings2026 ~ RecordSpan,
+  family = nbinom2,
+  data = model_data
+)
+
+model1p <- glmmTMB(
+  Sightings2026 ~ RecordSpan,
+  family = poisson,
+  data = model_data
+)
+
+model1gp <- glmmTMB(
+  Sightings2026 ~ RecordSpan,
+  family = genpois(link = "log"),
+  data = model_data
+)
+
+#Does adding HI improve the explanation of resighting frequency?
+model2n <- glmmTMB(
+  Sightings2026 ~ RecordSpan + HI,
+  family = nbinom2,
+  data = model_data
+)
+
+model2p <- glmmTMB(
+  Sightings2026 ~ RecordSpan + HI,
+  family = poisson,
+  data = model_data
+)
+
+model2gp <- glmmTMB(
+  Sightings2026 ~ RecordSpan + HI,
+  family = genpois(link = "log"),
+  data = model_data
+)
+
+#Does adding Avg Group Size improve the explanation of resighting frequency?
+model3n <- glmmTMB(
+  Sightings2026 ~ RecordSpan + HI + AvgGroupSize,
+  family = nbinom2,
+  data = model_data
+)
+
+model3p <- glmmTMB(
+  Sightings2026 ~ RecordSpan + HI + AvgGroupSize,
+  family = poisson,
+  data = model_data
+)
+
+model3gp <- glmmTMB(
+  Sightings2026 ~ RecordSpan + HI + AvgGroupSize,
+  family = genpois(link = "log"),
+  data = model_data
+)
+
+#Does adding Calf Encounters improve the explanation of resighting frequency?
+model4n <- glmmTMB(
+  Sightings2026 ~ RecordSpan + HI + AvgGroupSize + CalfEncounters,
+  family = nbinom2,
+  data = model_data
+)
+
+model4p <- glmmTMB(
+  Sightings2026 ~ RecordSpan + HI + AvgGroupSize + CalfEncounters,
+  family = poisson,
+  data = model_data
+)
+
+model4gp <- glmmTMB(
+  Sightings2026 ~ RecordSpan + HI + AvgGroupSize + CalfEncounters,
+  family = genpois(link = "log"),
+  data = model_data
+)
+
+#Does adding Juvenile Encounters improve the explanation of resighting frequency?
+model5n <- glmmTMB(
+  Sightings2026 ~ RecordSpan + HI + AvgGroupSize + JuvenileEncounters,
+  family = nbinom2,
+  data = model_data
+)
+
+model5p <- glmmTMB(
+  Sightings2026 ~ RecordSpan + HI + AvgGroupSize + JuvenileEncounters,
+  family = poisson,
+  data = model_data
+)
+
+model5gp <- glmmTMB(
+  Sightings2026 ~ RecordSpan + HI + AvgGroupSize + JuvenileEncounters,
+  family = genpois(link = "log"),
+  data = model_data
+)
+
+AIC(model1n, model2n, model3n, model4n, model5n)
+AIC(model1p, model2p, model3p, model4p, model5p)
+AIC(model1gp, model2gp, model3gp, model4gp, model5gp)
+```
+Model 4 (generalized poisson) had the lowest AIC value and was selected as the best-supported model.
+
+```{r}
+library(DHARMa)
+
+simulationOutput <- simulateResiduals(
+  fittedModel = model4gp,
+  n = 1000
+)
+
+plot(simulationOutput)
+
+testDispersion(simulationOutput)
+testUniformity(simulationOutput)
+testOutliers(simulationOutput)
+```
+DHARMa diagnostic detected significant for non-uniform residuals.
+No excess of outliers was detected.
+
+```{r}
+summary(model4n)
+summary(model4p)
+summary(model4gp)
+
+model4n$fit$convergence 
+model4p$fit$convergence #converged
+model4gp$fit$convergence #converged 
+```
+Historical record span and Avg Group Size, were not significantly associated with resighting frequency, but the number of calf-associated encounters and HI was positively associated with resighting frequency 
+
+#Objective 2: Factors Associated with HI Indicators -- logistic regression 
+#response variable = HI presence (binary) 
+```{r}
+#Does historical record span predict HI?
+HI1 <- glm(
+  HI ~ RecordSpan,
+  family = binomial,
+  data = model_data
+)
+
+#Does adding resighting frequency improve the explanation of HI?
+HI2 <- glm(
+  HI ~ RecordSpan + Sightings2026,
+  family = binomial,
+  data = model_data
+)
+
+#Does adding average group size improve explanation of HI?
+HI3 <- glm(
+  HI ~ RecordSpan +
+       Sightings2026 +
+       AvgGroupSize,
+  family = binomial,
+  data = model_data
+)
+
+#Does adding calf encounters improve explanation of HI?
+HI4 <- glm(
+  HI ~ RecordSpan +
+       Sightings2026 +
+       AvgGroupSize +
+       CalfEncounters,
+  family = binomial,
+  data = model_data
+)
+
+#Does adding juvenile encounters improve explanation of HI?
+HI5 <- glm(
+  HI ~ RecordSpan +
+       Sightings2026 +
+       AvgGroupSize +
+       JuvenileEncounters,
+  family = binomial,
+  data = model_data
+)
+
+AIC(HI1, HI2, HI3, HI4, HI5)
+```
+Model 5 had the lowest AIC value and was selected as the best-supported model.
+```{r}
+summary(HI5)
+HI5$converged
+```
+More frequently encountered dolphins were not significantly more likely to exhibit HI indicators.
+Dolphins observed in larger groups tended to have a higher probability of exhibiting visible indicators of human interaction -- relationship not statistically significant (p = 0.075).
+Although juvenile encounters were not significantly associated with HI presence (β = 1.079, p = 0.122), the positive coefficient suggested a tendency for dolphins associated with juvenile groups to be more likely to exhibit HI indicators. The inclusion of juvenile encounters contributed to the best-supported model based on AIC.
+Dolphins with longer historical record spans were significantly more likely to exhibit visible indicators of human interaction (p=0.0102)
+
+```{r}
+#Summary Statistics 
+model_data %>%
+  summarise(
+    Mean_RecordSpan = mean(RecordSpan),
+    SD_RecordSpan = sd(RecordSpan),
+    Min_RecordSpan = min(RecordSpan),
+    Max_RecordSpan = max(RecordSpan),
+    
+    Mean_Sightings = mean(Sightings2026),
+    SD_Sightings = sd(Sightings2026),
+    Min_Sightings = min(Sightings2026),
+    Max_Sightings = max(Sightings2026),
+
+    Mean_Calf = mean(CalfEncounters),
+    SD_Calf = sd(CalfEncounters),
+    Min_Calf = min(CalfEncounters),
+    Max_Calf = max(CalfEncounters),
+
+    Mean_Juvenile = mean(JuvenileEncounters),
+    SD_Juvenile = sd(JuvenileEncounters),
+    Min_Juvenile = min(JuvenileEncounters),
+    Max_Juvenile = max(JuvenileEncounters),
+
+    Mean_Group = mean(AvgGroupSize),
+    SD_Group = sd(AvgGroupSize),
+    Min_Group = min(AvgGroupSize),
+    Max_Group = max(AvgGroupSize)
+  )
+```
+#Figures 
+```{r}
+#Resighting Frequency Distribution Figure  
+ggplot(model_data,
+       aes(x = Sightings2026)) +
+  geom_bar(fill='lightblue') +
+  theme_classic() +
+  scale_x_continuous (
+    breaks = seq(
+      min(model_data$Sightings2026),
+      max(model_data$Sightings2026),
+      by = 1)
+  ) +
+  labs(
+    x = "2026 Resighting Frequency (count)",
+    y = "Number of Dolphins",
+    title = "Resighting Frequency Distribution"
+  )
+
+#Historical Record Span Distribution Figure  
+ggplot(model_data,
+       aes(x = RecordSpan)) +
+  geom_bar(fill='darkblue') +
+  theme_classic() +
+  labs(
+    x = "Historical Record Span (years)",
+    y = "Number of Dolphins",
+    title = "Historical Record Span Distribution"
+  )
+```
+
+```{r}
+#Calf Encounters vs Resighting Frequency Figure 
+ggplot(model_data,
+       aes(x = CalfEncounters,
+           y = Sightings2026)) +
+  geom_jitter() +
+  geom_smooth(method = "lm",
+              color = "red") +
+  theme_classic() +
+  labs(
+    x = "Number of Calf Encounters",
+    y = "2026 Resighting Frequency",
+    title = "Relationship Between Calf Encounters and Resighting Frequency"
+  )
+
+# HI Presence vs Resighting Frequency Figure
+model_data$HI <- factor(
+  model_data$HI,
+  levels = c("0", "1"),
+  labels = c("No HI", "HI Present")
+)
+# Create boxplot with individual dolphin observations
+figure_HI <- ggplot(model_data, aes(x = HI, y = Sightings2026)) +
+  geom_boxplot(
+    outlier.shape = NA,
+    fill = "lightpink",
+    color = "black"
+  ) +
+  geom_jitter(
+    width = 0.12,
+    height = 0,
+    size = 2,
+    alpha = 0.65
+  ) +
+  labs(
+    x = "Human-Interaction Indicator Presence",
+    y = "2026 Resighting Frequency",
+    title = "Relationship Between HI Presence and Resighting Frequency"
+  ) +
+  scale_y_continuous(
+    breaks = 1:6,
+    limits = c(0.8, 6.2)
+  ) 
+
+# Display figure
+figure_HI
+```
+
+```{r}
+#Historical Record Span vs HI Presence Figure 
+ggplot(model_data,
+       aes(x = HI,
+           y = RecordSpan)) +
+  geom_boxplot(fill = "steelblue") +
+  scale_x_discrete(
+    labels = c("No HI", "HI Present")
+  ) +
+  theme_classic() +
+  labs(
+    title = "Historical Record Span by HI Presence",
+    x = "Human-Interaction Indicator Presence",
+    y = "Historical Record Span (years)"
+  )
+```
+
+```{r}
+library(ggeffects)
+#Predicted Probability of HI Figure
+pred <- ggpredict(HI5,
+                  terms = "RecordSpan")
+
+plot(pred) +
+  labs(
+    title = "HI Probability by Historical Record Span",
+    x = "Historical Record Span (years)",
+    y = "Predicted Probability of HI Presence"
+  )
+```
