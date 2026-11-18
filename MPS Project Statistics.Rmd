@@ -9,7 +9,7 @@ library(tidyverse)
 ```
 
 ```{r}
-dolphin <- read.csv("MPSstats.csv")
+dolphin <- read.csv("Finalized MPS Data (2).csv")
 head(dolphin)
 #view(dolphin)
 #descriptive stats for each variable
@@ -23,9 +23,13 @@ model_data <- dolphin %>%
     Dolphin.ID,
     Historical.Record.Span..years.,
     X..of.Sightings.2026.Season,
+    X..of.Subsequent.Sightings,
+    X.DaysRemaining,
     HI.Present..1.yes.,
     Calf.Encounters.2026,
+    CalfAtFirstEncounter..1.yes.,
     Juvenile.Encounters.2026,
+    JuvenileAtFirstEncounter..1.yes.,
     Average.Group.Size
   )
 
@@ -35,15 +39,27 @@ model_data <- model_data %>%
     DolphinID = Dolphin.ID,
     RecordSpan = Historical.Record.Span..years.,
     Sightings2026 = X..of.Sightings.2026.Season,
+    SubsequentSightings2026 = X..of.Subsequent.Sightings,
+    DaysRemaining = X.DaysRemaining,
     HI = HI.Present..1.yes.,
     CalfEncounters = Calf.Encounters.2026,
+    CalfAt1Encounter = CalfAtFirstEncounter..1.yes.,
     JuvenileEncounters = Juvenile.Encounters.2026,
+    JuvenileAt1Encounter = JuvenileAtFirstEncounter..1.yes.,
     AvgGroupSize = Average.Group.Size
   )
 
 #create factor for HI (1=yes, 0=no)
 model_data <- model_data %>%
   mutate(HI = factor(HI))
+
+#create factor for Calf at First Encounter (1=yes, 0=no)
+model_data <- model_data %>%
+  mutate(CalfAt1Encounter = factor(CalfAt1Encounter))
+
+#create factor for Juvenile at First Encounter (1=yes, 0=no)
+model_data <- model_data %>%
+  mutate(JuvenileAt1Encounter = factor(JuvenileAt1Encounter))
 
 glimpse(model_data)
 ```
@@ -55,7 +71,7 @@ model_data %>%
 
 #count #of sightings 
 model_data %>%
-  count(Sightings2026)
+  count(SubsequentSightings2026)
 ```
 
 #Do any variables correlate? 
@@ -65,6 +81,8 @@ model_data %>%
   select(
     RecordSpan,
     Sightings2026,
+    SubsequentSightings2026,
+    DaysRemaining,
     CalfEncounters,
     JuvenileEncounters,
     AvgGroupSize,
@@ -72,137 +90,185 @@ model_data %>%
   cor()
 ```
 
-#Objective 1: Factors Associated with Resighting Frequency -- generalized poisson regression
-#response variable = #of sightings (count data, not normally distributed)
+#Objective 1: Factors Associated with Subsequent Resighting Frequency 
 ```{r}
 library(glmmTMB)
 
+model0n <- glmmTMB(
+  SubsequentSightings2026 ~ DaysRemaining,
+  family = nbinom2,
+  data = model_data
+)
+
+model0p <- glmmTMB(
+  SubsequentSightings2026 ~ DaysRemaining,
+  family = poisson,
+  data = model_data
+)
+
+model0gp <- glmmTMB(
+  SubsequentSightings2026 ~ DaysRemaining,
+  family = genpois(link = "log"),
+  data = model_data
+)
+
 #Does historical record span predict resighting frequency?
 model1n <- glmmTMB(
-  Sightings2026 ~ RecordSpan,
+  SubsequentSightings2026 ~ RecordSpan + DaysRemaining,
   family = nbinom2,
   data = model_data
 )
 
 model1p <- glmmTMB(
-  Sightings2026 ~ RecordSpan,
+  SubsequentSightings2026 ~ RecordSpan + DaysRemaining,
   family = poisson,
   data = model_data
 )
 
 model1gp <- glmmTMB(
-  Sightings2026 ~ RecordSpan,
+  SubsequentSightings2026 ~ RecordSpan + DaysRemaining,
   family = genpois(link = "log"),
   data = model_data
 )
 
 #Does adding HI improve the explanation of resighting frequency?
 model2n <- glmmTMB(
-  Sightings2026 ~ RecordSpan + HI,
+  SubsequentSightings2026 ~ HI + DaysRemaining,
   family = nbinom2,
   data = model_data
 )
 
 model2p <- glmmTMB(
-  Sightings2026 ~ RecordSpan + HI,
+  SubsequentSightings2026 ~ HI + DaysRemaining,
   family = poisson,
   data = model_data
 )
 
 model2gp <- glmmTMB(
-  Sightings2026 ~ RecordSpan + HI,
+  SubsequentSightings2026 ~ HI + DaysRemaining,
   family = genpois(link = "log"),
   data = model_data
 )
 
 #Does adding Avg Group Size improve the explanation of resighting frequency?
 model3n <- glmmTMB(
-  Sightings2026 ~ RecordSpan + HI + AvgGroupSize,
+  SubsequentSightings2026 ~ HI + AvgGroupSize + DaysRemaining,
   family = nbinom2,
   data = model_data
 )
 
 model3p <- glmmTMB(
-  Sightings2026 ~ RecordSpan + HI + AvgGroupSize,
+  SubsequentSightings2026 ~ HI + AvgGroupSize + DaysRemaining,
   family = poisson,
   data = model_data
 )
 
 model3gp <- glmmTMB(
-  Sightings2026 ~ RecordSpan + HI + AvgGroupSize,
+  SubsequentSightings2026 ~ HI + AvgGroupSize + DaysRemaining,
   family = genpois(link = "log"),
   data = model_data
 )
 
-#Does adding Calf Encounters improve the explanation of resighting frequency?
+#Does adding Calf at 1st Encounter improve the explanation of resighting frequency?
 model4n <- glmmTMB(
-  Sightings2026 ~ RecordSpan + HI + AvgGroupSize + CalfEncounters,
+  SubsequentSightings2026 ~ HI + AvgGroupSize + CalfAt1Encounter + DaysRemaining,
   family = nbinom2,
   data = model_data
 )
 
 model4p <- glmmTMB(
-  Sightings2026 ~ RecordSpan + HI + AvgGroupSize + CalfEncounters,
+  SubsequentSightings2026 ~ HI + AvgGroupSize + CalfAt1Encounter + DaysRemaining,
   family = poisson,
   data = model_data
 )
 
 model4gp <- glmmTMB(
-  Sightings2026 ~ RecordSpan + HI + AvgGroupSize + CalfEncounters,
+  SubsequentSightings2026 ~ HI + AvgGroupSize + CalfAt1Encounter + DaysRemaining,
   family = genpois(link = "log"),
   data = model_data
 )
 
-#Does adding Juvenile Encounters improve the explanation of resighting frequency?
+#Does adding Juvenile at 1st Encounter improve the explanation of resighting frequency?
 model5n <- glmmTMB(
-  Sightings2026 ~ RecordSpan + HI + AvgGroupSize + JuvenileEncounters,
+  SubsequentSightings2026 ~ HI + AvgGroupSize + JuvenileAt1Encounter + DaysRemaining,
   family = nbinom2,
   data = model_data
 )
 
 model5p <- glmmTMB(
-  Sightings2026 ~ RecordSpan + HI + AvgGroupSize + JuvenileEncounters,
+  SubsequentSightings2026 ~ HI + AvgGroupSize + JuvenileAt1Encounter + DaysRemaining,
   family = poisson,
   data = model_data
 )
 
 model5gp <- glmmTMB(
-  Sightings2026 ~ RecordSpan + HI + AvgGroupSize + JuvenileEncounters,
+  SubsequentSightings2026 ~ HI + AvgGroupSize + JuvenileAt1Encounter + DaysRemaining,
   family = genpois(link = "log"),
   data = model_data
 )
 
-#compare models with AIC 
-AIC(model1n, model2n, model3n, model4n, model5n)
-AIC(model1p, model2p, model3p, model4p, model5p)
-AIC(model1gp, model2gp, model3gp, model4gp, model5gp)
+AIC(model0n, model1n, model2n, model3n, model4n, model5n)
+AIC(model0p, model1p, model2p, model3p, model4p, model5p)
+AIC(model0gp, model1gp, model2gp, model3gp, model4gp, model5gp)
 ```
 
 ```{r}
-library(DHARMa)
-
-simulationOutput <- simulateResiduals(
-  fittedModel = model4gp,
-  n = 1000
-)
-
-plot(simulationOutput)
-
-#check model diagnostics
-testDispersion(simulationOutput)
-testUniformity(simulationOutput)
-testOutliers(simulationOutput)
-```
-
-```{r}
-#what variables have significant association w/resighting frequency?
+#what variables have significant association w/subsequent sighting count?
 summary(model4n)
 summary(model4p)
 summary(model4gp)
 
-model4n$fit$convergence 
+model4n$fit$convergence #converged 
 model4p$fit$convergence #converged
 model4gp$fit$convergence #converged 
+```
+
+#Negative binomial residuals 
+```{r}
+library(DHARMa)
+
+simulationOutputnb <- simulateResiduals(
+  fittedModel = model4n,
+  n = 1000
+)
+
+plot(simulationOutputnb)
+
+testDispersion(simulationOutputnb)
+testUniformity(simulationOutputnb)
+testOutliers(simulationOutputnb)
+```
+
+#Poisson residuals 
+```{r}
+library(DHARMa)
+
+simulationOutputp <- simulateResiduals(
+  fittedModel = model4p,
+  n = 1000
+)
+
+plot(simulationOutputp)
+
+testDispersion(simulationOutputp)
+testUniformity(simulationOutputp)
+testOutliers(simulationOutputp)
+```
+
+#Generalized poisson regression residuals 
+```{r}
+library(DHARMa)
+
+simulationOutputgp <- simulateResiduals(
+  fittedModel = model2gp,
+  n = 1000
+)
+
+plot(simulationOutputgp)
+
+testDispersion(simulationOutputgp)
+testUniformity(simulationOutputgp)
+testOutliers(simulationOutputgp)
 ```
 
 #Objective 2: Factors Associated with HI Indicators -- logistic regression 
@@ -217,7 +283,7 @@ HI1 <- glm(
 
 #Does adding resighting frequency improve the explanation of HI?
 HI2 <- glm(
-  HI ~ RecordSpan + Sightings2026,
+  HI ~ RecordSpan + SubsequentSightings2026,
   family = binomial,
   data = model_data
 )
@@ -225,7 +291,7 @@ HI2 <- glm(
 #Does adding average group size improve explanation of HI?
 HI3 <- glm(
   HI ~ RecordSpan +
-       Sightings2026 +
+       SubsequentSightings2026 +
        AvgGroupSize,
   family = binomial,
   data = model_data
@@ -234,7 +300,7 @@ HI3 <- glm(
 #Does adding calf encounters improve explanation of HI?
 HI4 <- glm(
   HI ~ RecordSpan +
-       Sightings2026 +
+       SubsequentSightings2026 +
        AvgGroupSize +
        CalfEncounters,
   family = binomial,
@@ -244,20 +310,34 @@ HI4 <- glm(
 #Does adding juvenile encounters improve explanation of HI?
 HI5 <- glm(
   HI ~ RecordSpan +
-       Sightings2026 +
+       SubsequentSightings2026 +
        AvgGroupSize +
        JuvenileEncounters,
   family = binomial,
   data = model_data
 )
 
-#compare models with AIC 
 AIC(HI1, HI2, HI3, HI4, HI5)
 ```
 
 ```{r}
+summary(HI3)
 summary(HI5)
+HI3$converged
 HI5$converged
+```
+
+#odds ratio & confidence intervals 
+```{r}
+exp(cbind(
+  OR = coef(HI3),
+  confint(HI3)
+))
+
+exp(cbind(
+  OR = coef(HI5),
+  confint(HI5)
+))
 ```
 
 ```{r}
@@ -268,63 +348,78 @@ model_data %>%
     SD_RecordSpan = sd(RecordSpan),
     Min_RecordSpan = min(RecordSpan),
     Max_RecordSpan = max(RecordSpan),
-    
-    Mean_Sightings = mean(Sightings2026),
-    SD_Sightings = sd(Sightings2026),
-    Min_Sightings = min(Sightings2026),
-    Max_Sightings = max(Sightings2026),
 
-    Mean_Calf = mean(CalfEncounters),
-    SD_Calf = sd(CalfEncounters),
-    Min_Calf = min(CalfEncounters),
-    Max_Calf = max(CalfEncounters),
+    Mean_SubsequentSightings = mean(SubsequentSightings2026),
+    SD_SubsequentSightings = sd(SubsequentSightings2026),
+    Min_SubsequentSightings = min(SubsequentSightings2026),
+    Max_SubsequentSightings = max(SubsequentSightings2026),
 
-    Mean_Juvenile = mean(JuvenileEncounters),
-    SD_Juvenile = sd(JuvenileEncounters),
-    Min_Juvenile = min(JuvenileEncounters),
-    Max_Juvenile = max(JuvenileEncounters),
+    Mean_DaysRemaining = mean(DaysRemaining),
+    SD_DaysRemaining = sd(DaysRemaining),
+    Min_DaysRemaining = min(DaysRemaining),
+    Max_DaysRemaining = max(DaysRemaining),
 
     Mean_Group = mean(AvgGroupSize),
     SD_Group = sd(AvgGroupSize),
     Min_Group = min(AvgGroupSize),
-    Max_Group = max(AvgGroupSize)
+    Max_Group = max(AvgGroupSize), 
+    
+    Mean_Calves = mean(CalfEncounters),
+    SD_Calves = sd(CalfEncounters),
+    Min_Calves = min(CalfEncounters),
+    Max_Calves = max(CalfEncounters), 
+    
+    Mean_Juveniles = mean(JuvenileEncounters),
+    SD_Juveniles = sd(JuvenileEncounters),
+    Min_Juveniles = min(JuvenileEncounters),
+    Max_Juveniles = max(JuvenileEncounters)
   )
+
+table(model_data$HI)
+
+table(model_data$CalfAt1Encounter)
+
+table(model_data$JuvenileAt1Encounter)
 ```
 
 #Figures 
 ```{r}
 #Resighting Frequency Distribution Figure  
 ggplot(model_data,
-       aes(x = Sightings2026)) +
+       aes(x = SubsequentSightings2026)) +
   geom_bar(fill='lightblue') +
   theme_classic() +
   scale_x_continuous (
     breaks = seq(
-      min(model_data$Sightings2026),
-      max(model_data$Sightings2026),
+      min(model_data$SubsequentSightings2026),
+      max(model_data$SubsequentSightings2026),
       by = 1)
   ) +
   labs(
-    x = "2026 Resighting Frequency (count)",
+    x = "2026 Subsequent Sighting Count Frequency",
     y = "Number of Dolphins",
-    title = "Resighting Frequency Distribution"
+    title = "Subsequent Sighting Count Distribution"
   )
+```
 
 ```{r}
-#Calf Encounters vs Resighting Frequency Figure 
+#Days Remaining vs Subsequent Sighting  
 ggplot(model_data,
-       aes(x = CalfEncounters,
-           y = Sightings2026)) +
-  geom_jitter() +
+       aes(x = DaysRemaining,
+           y = SubsequentSightings2026)) +
+  geom_jitter(width = 0.5,
+              alpha = 0.6) +
   geom_smooth(method = "lm",
               color = "red") +
   theme_classic() +
   labs(
-    x = "Number of Calf Encounters",
-    y = "2026 Resighting Frequency",
-    title = "Relationship Between Calf Encounters and Resighting Frequency"
+    x = "Days Remaining in Study",
+    y = "2026 Subsequent Sighting Count",
+    title = "Relationship Between Follow-Up Period and 2026 Subsequent Sightings"
   )
+```
 
+```{r}
 # HI Presence vs Resighting Frequency Figure
 model_data$HI <- factor(
   model_data$HI,
@@ -332,7 +427,7 @@ model_data$HI <- factor(
   labels = c("No HI", "HI Present")
 )
 # Create boxplot with individual dolphin observations
-figure_HI <- ggplot(model_data, aes(x = HI, y = Sightings2026)) +
+figure_HI <- ggplot(model_data, aes(x = HI, y = SubsequentSightings2026)) +
   geom_boxplot(
     outlier.shape = NA,
     fill = "lightpink",
@@ -346,12 +441,12 @@ figure_HI <- ggplot(model_data, aes(x = HI, y = Sightings2026)) +
   ) +
   labs(
     x = "Human-Interaction Indicator Presence",
-    y = "2026 Resighting Frequency",
-    title = "Relationship Between HI Presence and Resighting Frequency"
+    y = "2026 Subsequent Sighting Count",
+    title = "Relationship Between HI Presence and Subsequent Sighting Count Frequency"
   ) +
   scale_y_continuous(
     breaks = 1:6,
-    limits = c(0.8, 6.2)
+    limits = c(0, 6.2)
   ) +
   theme_classic()
 
@@ -360,11 +455,36 @@ figure_HI
 ```
 
 ```{r}
+#CalfAtFirstEncounter vs Subsequent Sightings
+ggplot(model_data,
+       aes(x = CalfAt1Encounter,
+           y = SubsequentSightings2026)) +
+  geom_boxplot(fill = "orange") +
+  geom_jitter(width = 0.1,
+              alpha = 0.6) +
+  theme_classic() +
+  scale_x_discrete(
+    labels = c("Calf Not Present", "Calf Present")
+  ) +
+  labs(
+    x = "Calf Present at First Encounter",
+    y = "2026 Subsequent Sighting Count",
+    title = "2026 Subsequent Sightings by Calf Presence at First Encounter"
+  )
+```
+
+```{r}
 #Historical Record Span vs HI Presence Figure 
 ggplot(model_data,
        aes(x = HI,
            y = RecordSpan)) +
-  geom_boxplot(fill = "steelblue") +
+  geom_boxplot(outlier.shape = NA, fill = "steelblue", color = "black") +
+  geom_jitter(
+    width = 0.12,
+    height = 0,
+    size = 2,
+    alpha = 0.65
+  ) +
   scale_x_discrete(
     labels = c("No HI", "HI Present")
   ) +
@@ -379,13 +499,15 @@ ggplot(model_data,
 ```{r}
 library(ggeffects)
 #Predicted Probability of HI Figure
-pred <- ggpredict(HI5,
+pred1 <- ggpredict(HI3,
                   terms = "RecordSpan")
 
-plot(pred) +
+plot(pred1) +
   labs(
     title = "HI Probability by Historical Record Span",
     x = "Historical Record Span (years)",
     y = "Predicted Probability of HI Presence"
   )
+
+print(pred1)
 ```
